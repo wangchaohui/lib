@@ -33,7 +33,7 @@ BigNum::BigNum(int x) : size_(0)
 BigNum::BigNum(const char *s)
 {
     while (*s == '0')s++;
-    if (!*s){ To(1); return; }
+    if (!*s){ To(0); return; }
     int l = strlen(s);
     size_ = (l - 1) / kDigits + 1;
     int p = size_ - 1; d_[p] = 0;
