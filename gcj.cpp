@@ -1,10 +1,11 @@
+#define FRsmall(x,y) do{freopen(#x"-small-attempt"#y".in","r",stdin);freopen(#x"-small-attempt"#y".out","w",stdout);}while(0)
+#define FRlarge(x) do{freopen(#x"-large.in","r",stdin);freopen(#x"-large.out","w",stdout);}while(0)
+
 int main()
 {
     freopen("in.txt", "r", stdin);
-    freopen("A-small-attempt0.in", "r", stdin);
-    freopen("A-small-attempt0.out", "w", stdout);
-    freopen("A-large.in", "r", stdin);
-    freopen("A-large.out", "w", stdout);
+    FRsmall(A, 0);
+    FRlarge(A);
     int T, TC = 0;
     scanf("%d", &T);
     while (++TC <= T)
