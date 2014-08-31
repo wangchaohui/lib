@@ -11,6 +11,7 @@ public:
     BigNum() : size_(1) { d_[0] = 0; }
     BigNum(int x);
     BigNum(const char *s);
+    int size() const { return size_; }
     void To(int x);
     void Print() const;
     void MulInt(int x);
