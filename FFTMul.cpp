@@ -4,12 +4,13 @@
 #include <cmath>
 #include <cstring>
 
-#define pi 3.14159265358979
+const double pi = 3.14159265358979;
 #define maxn 65536
 #define maxlgn 16
 #define DIGITS 4
 const int kBase = 10000;
 #define eps 1e-5
+#define for0(i,n) for(int i=0;i<(n);i++) 
 
 using namespace std;
 
@@ -19,11 +20,6 @@ int n, lgn, bit[maxlgn], rev[maxn];
 comp t[maxn + 1], A[maxn + 1], B[maxn + 1];
 char buf[maxn / 2 * DIGITS + 1];
 int x[maxn + 1], y[maxn + 1], r[maxn + 1];
-
-void IncreaseReal(comp &c, double d)
-{
-    c.real(c.real() + d);
-}
 
 int BitReversedIncrement(int a)
 {
@@ -76,22 +72,21 @@ void IterativeFFT(const comp *a, comp *A, int mw)
 
 void Convolution(int *a, int *b)
 {
-    int i;
-    for (i = n, lgn = 0; i /= 2; lgn++);
     InitRev();
-    for (i = 0; i < n; i++) t[i] = a[i];
+    for0(i,n) t[i] = a[i];
     IterativeFFT(t, A, 1);
-    for (i = 0; i < n; i++) t[i] = b[i];
+    for0(i,n) t[i] = b[i];
     IterativeFFT(t, B, 1);
-    for (i = 0; i < n; i++) A[i] *= B[i];
+    for0(i,n) A[i] *= B[i];
     IterativeFFT(A, t, -1);
-    for (i = 0; i < n; i++) t[i].real(t[i].real() / n);
+    for0(i,n) t[i] /= n;
 }
 
 void FFTMul(int *x, int *y, int *r)
 {
     int i;
-    for (i = x[0] + y[0] - 1, lgn = 1, n = 2; i /= 2; lgn++, n *= 2);
+    for (i = x[0] + y[0] - 1, lgn = 1; i /= 2; lgn++);
+    n = 1 << lgn;
     for (i = x[0] + 1; i <= n + 1; i++) x[i] = 0;
     for (i = y[0] + 1; i <= n + 1; i++) y[i] = 0;
     Convolution(x + 1, y + 1);
@@ -101,8 +96,8 @@ void FFTMul(int *x, int *y, int *r)
         if (tReal > kBase)
         {
             int p = (int)(tReal / kBase);
-            IncreaseReal(t[i], -(double)p * kBase);
-            IncreaseReal(t[i + 1], p);
+            t[i] -= (double)p * kBase;
+            t[i + 1] += p;
         }
         r[i + 1] = (int)(t[i].real() + 0.5);
     }
@@ -113,8 +108,8 @@ void FFTMul(int *x, int *y, int *r)
 void StrToBigNum(char *s, int *d)
 {
     int a, i;
-    while (*s == '0')s++;
-    if (*s == '\0'){ d[0] = 1; d[1] = 0; return; }
+    while (*s == '0') s++;
+    if (*s == '\0') { d[0] = 1; d[1] = 0; return; }
     int l = strlen(s);
     d[0] = (l - 1) / DIGITS + 1;
     for (i = 1; i < d[0]; i++)
