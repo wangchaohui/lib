@@ -23,6 +23,7 @@
 #include <utility> 
 #include <ctime> 
 using namespace std;
+
 template<class T> inline void checkmin(T &a, T b){ if (b<a) a = b; }//NOTES:checkmin( 
 template<class T> inline void checkmax(T &a, T b){ if (b>a) a = b; }//NOTES:checkmax( 
 #define SIZE(x) ((int)(x).size()) 
@@ -31,3 +32,4 @@ template<class T> inline void checkmax(T &a, T b){ if (b>a) a = b; }//NOTES:chec
 #define for0r(i,n) for(int i=(n)-1;i>=0;i--) 
 #define for1r(i,n) for(int i=(n);i>=1;i--) 
 typedef long long ll;
+typedef pair<int, int> pii;
