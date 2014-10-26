@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <bitset>
 #include <map>
 #include <stack>
 #include <string>
@@ -13,7 +14,9 @@
 using namespace std;
 
 const int N = 1000;
-#define for0(i,n) for(int i=0;i<(n);i++) 
+const int W = 128;
+#define for0(i,n) for(int i=0;i<(n);i++)
+#define for1(i,n) for(int i=1;i<=(n);i++)
 //#define DEBUG
 
 //#pragma warning(disable : 4996)
@@ -53,49 +56,21 @@ public:
   char* getPosition() { return p; }
 };
 
-template<size_t size>
-class BitSet {
-  static const int maxp = (size - 1) / 8 + 1;
-  char s[size];
-public:
-  bool test(int i) const { return (s[i / 8] >> (i % 8)) & 1; }
-  bool any() const { for0(i, maxp) if (s[i]) return true; return false; }
-  bool operator== (const BitSet<size> &b) const { for0(i, maxp) if (s[i] != b.s[i]) return false; return true; }
-  void set(int i) { s[i / 8] |= 1 << (i % 8); }
-  void clear() { for0(i, maxp) s[i] = 0; }
-  void copy(const BitSet<size> &a) { for0(i, maxp) s[i] = a.s[i]; }
-  //void or(const BitSet<size> &a, const BitSet<size> &b) { for0(i, maxp) s[i] = a.s[i] | b.s[i]; }
-  bool operator|= (const BitSet<size> &b) {
-    bool r = false; for0(i, maxp) if ((s[i] & b.s[i]) != b.s[i]) { r = true; s[i] |= b.s[i]; } return r;
-  }
-  bool operator[] (int pos) const { return test(pos); }
-  void print() const {
-    printf("{ "); bool f = false;
-    for (int i = 0; i < size; i++) if (test(i)) { if (f) putchar(','); f = true; printf("%d", i); }
-    printf(" }");
-  }
-};
-
 class Node {
   static Node d[20000];
   static int tot;
 public:
-  int ch;
-  int token;
-  int n;
-  bool nullable;
-  BitSet<N> first;    // first pos
-  BitSet<N> last;     // last pos
-  Node *left, *right;
+  int ch, token, n;
+  bool e;
+  bitset<N> f, l;
+  Node *z, *r;
 
-  static void clear() {
-    tot = 0;
-  }
+  static void clear() { tot = 0; }
 
-  static Node* newNode(int ch, Node *left = nullptr, Node *right = nullptr) {
+  static Node* newNode(int ch, Node *z = nullptr, Node *r = nullptr) {
     if (tot == sizeof(d)) { throw; }
     Node *x = &d[tot++];
-    x->ch = ch; x->left = left; x->right = right;
+    x->ch = ch; x->z = z; x->r = r;
     return x;
   }
 };
@@ -103,32 +78,32 @@ public:
 Node Node::d[20000];
 int Node::tot;
 
-BitSet<N> followpos[N];
+bitset<N> fp[N];
 
 int state_n;
-BitSet<N> S[N];
-int tran[N][256];
-char accepting[N];
-int parti[N];  // partition
-int G[N][256];
-int M_n;
+int tran[N][W];
+int ac[N];
 
 struct State {
-  int tran[256];
-  int accepting;
+  int tran[W];
+  int ac;
   int old_n;
   int mn;
+
+  bool operator<(const State &b) const {
+    return mn < b.mn;
+  }
 };
 
 State M[N];
 
 struct Regular {
-  const string name;       // length 16
-  const string regular;    // length 256
+  const string name;
+  const string regular;
   Node *tree;
 };
 
-int acposition[N];
+int ap[N];
 int token_n;
 int regular_n;
 
@@ -158,8 +133,8 @@ public:
 };
 
 struct Token {
-  string name;  // length 16
-  string value; // length 256
+  string name;
+  string value;
   int key;
 };
 
@@ -180,207 +155,223 @@ public:
 
   void clear() {
     cc = 0;
-    memset(is_input, 0, sizeof(is_input));
+    memset(isi, 0, sizeof(isi));
     memset(C, 0, sizeof(C));
   }
 
-  Node* RegularExpressionSyntaxTree(const string &s, int regular_table_size);
+  Node* SyntaxTree(const string &s, int regular_table_size);
 
   int cc;
-  bool is_input[256];
+  bool isi[W];
   char C[N];  /* C[i] is the char at position i */
 
 private:
   Node* copyTree(Node *x);
-  int jisuan(char op);
+  void jisuan(char op);
+  void St(char c) {
+    while (inpp > 0 && pr[in[inpp]] >= pr[c]) jisuan(in[inpp--]);
+  }
 
   Node *out[N];
   char in[N];
   int inpp, outpp;
+  static map<char, int> pr;
 };
+
+map<char, int> NC::pr = {
+    { '&', 2 }, { '\0', 1 }, { '*', 3 }, { '|', 1 }, { '(', 0 }, { ')', 1 }
+};
+
+Node* NodeConstructor::copyTree(Node *x) {
+  if (!x) return nullptr;
+  Node *y = Node::newNode(x->ch);
+  if (y->ch < W) isi[C[y->n = ++cc] = y->ch] = 1;
+  y->z = copyTree(x->z);
+  y->r = copyTree(x->r);
+  return y;
+}
+
+void NodeConstructor::jisuan(char op) {
+  Node *a, *b;
+  switch (op) {
+  case '*':
+    if (outpp == 0) throw;
+    a = out[outpp--];
+    out[++outpp] = Node::newNode('*' + W, a);
+    break;
+  case '|':
+    if (outpp < 2) throw;
+    b = out[outpp--];
+    a = out[outpp--];
+    out[++outpp] = Node::newNode('|' + W, a, b);
+    break;
+  case '&':
+    if (outpp < 2) throw;
+    b = out[outpp--];
+    a = out[outpp--];
+    out[++outpp] = Node::newNode('&' + W, a, b);
+    break;
+  }
+}
+
+Node * NodeConstructor::SyntaxTree(const string &s, int nrs) {
+  inpp = 0, outpp = 0;
+  int f = 0;
+  for (size_t i = 0; i < s.size(); i++) {
+    if (!isprint(s[i]) && s[i] != '\t' && s[i] != '\n') throw;
+    switch (s[i]) {
+    case '*':
+    case '|':
+      St(s[i]);
+      in[++inpp] = s[i];
+      if (s[i] == '|') f = 0;
+      break;
+    case '(':
+      if (f) { St('&'); in[++inpp] = '&'; }
+      in[++inpp] = s[i];
+      f = 0;
+      break;
+    case ')':
+      St(')');
+      if (inpp-- == 0) throw;
+      f = 1;
+      break;
+    case '@': {
+      int j = s.find('@', ++i);
+      string regular = s.substr(i, j - i);
+      i = j;
+      Regular *g = find_if(regulars, regulars + nrs, [&](Regular &r) {return regular == r.name; });
+      if (g == regulars + nrs || !g->tree) throw;
+      if (f) { St('&'); in[++inpp] = '&'; }
+      out[++outpp] = copyTree(g->tree);
+      f = 1;
+      break;
+    }
+    case '\\':
+    default:
+      bool trans = s[i] == '\\';
+      if (trans) i++;
+      if (f) { St('&'); in[++inpp] = '&'; }
+      int t = s[i];
+      if (!trans && t == '$') t += W;
+      Node *x = Node::newNode(t);
+      if (trans || s[i] != '$') isi[C[x->n = ++cc] = s[i]] = 1;
+      out[++outpp] = x;
+      f = 1;
+      break;
+    }
+  }
+  St('\0');
+  if (inpp || outpp != 1) throw;
+  return out[1];
+}
 
 class LexConstructor {
 public:
-  class cmp {
-    NodeConstructor &nc;
-  public:
-    bool operator() (int a, int b) const {
-      if (parti[a] != parti[b]) return parti[a] < parti[b];
-      for0(i, 256) if (nc.is_input[i] && G[a][i] != G[b][i]) return G[a][i] < G[b][i];
-      return false;
-    }
-    cmp(NodeConstructor &nc) : nc(nc) {}
-  };
-
-  class cmp_state {
-  public:
-    bool operator() (const State &a, const State &b) const {
-      return a.mn < b.mn;
-    }
-  };
-
-public:
   LexConstructor();
+  virtual void Do(Node *root);
   void init();
-  Node* bds(const string &s, int regular_table_size);
+  Node* bds(const string &s, int rts);
 
   NodeConstructor nc;
 
-private:
-  void ptr(Node *x, int l);
-  void nfl(Node *x);
-  void PrintFollow();  // print follow positon
+protected:
   void DfaFromRegular(Node *root);
   void MinimizeDfa();
-  void PrintDfa();
-  void PrintMinimizedDfa();
+
+private:
+  void nfl(Node *x);
 
   int regular_table_size_;
 };
 
-void LexConstructor::ptr(Node * x, int l) {
-  if (!x) return;
-  if (x->ch < 256)
-    print_char(x->ch, l + 1);
-  else
-    printf("%*c%c", l + 1, '_', x->ch - 256);
-  if (x->ch < 256 || x->ch == '#' + 256) {
-    if (x->ch == '#' + 256) printf("(%d)", x->token);
-    printf(" %d", x->n);
+void LexConstructor::nfl(Node *x) {
+  if (x->ch == '$' + W) {
+    x->e = true;
+    x->f.reset();
+    x->l.reset();
   }
-  printf(" (%s ", x->nullable ? "true" : "false");
-  x->first.print();
-  putchar(' ');
-  x->last.print();
-  putchar(')');
-  putchar('\n');
-  ptr(x->left, l + 2);
-  ptr(x->right, l + 2);
-}
-
-void LexConstructor::nfl(Node * x) {
-  if (x->ch == '$' + 256) {
-    x->nullable = true;
-    x->first.clear();
-    x->last.clear();
+  if (x->ch < W || x->ch == '#' + W) {
+    x->e = false;
+    x->f.reset();
+    x->l.reset();
+    x->f.set(x->n);
+    x->l.set(x->n);
   }
-  if (x->ch < 256 || x->ch == '#' + 256) {
-    x->nullable = false;
-    x->first.clear();
-    x->last.clear();
-    x->first.set(x->n);
-    x->last.set(x->n);
-  }
-  Node *l = x->left;
-  Node *r = x->right;
-  if (x->ch == '|' + 256) {
+  Node *l = x->z;
+  Node *r = x->r;
+  if (x->ch == '|' + W) {
     nfl(l);
     nfl(r);
-    x->nullable = l->nullable | r->nullable;
-    //x->firstpos.or(l->firstpos, r->firstpos);
-    x->first.copy(l->first);
-    x->first |= r->first;
-    //x->lastpos.or(l->lastpos, r->lastpos);
-    x->last.copy(l->last);
-    x->last |= r->last;
+    x->e = l->e | r->e;
+    x->f = l->f | r->f;
+    x->l = l->l | r->l;
   }
-  if (x->ch == '&' + 256) {
+  if (x->ch == '&' + W) {
     nfl(l);
     nfl(r);
-    x->nullable = l->nullable & r->nullable;
-    if (l->nullable) {
-      //x->firstpos.or(l->firstpos, r->firstpos);
-      x->first.copy(l->first);
-      x->first |= r->first;
-    } else
-      x->first.copy(l->first);
-    if (r->nullable) {
-      //x->lastpos.or(l->lastpos, r->lastpos);
-      x->last.copy(l->last);
-      x->last |= r->last;
-    } else
-      x->last.copy(r->last);
-    for (int i = 1; i <= nc.cc; i++) if (l->last[i]) followpos[i] |= r->first;
+    x->e = l->e & r->e;
+    x->f = l->e ? l->f | r->f : l->f;
+    x->l = r->e ? l->l | r->l : r->l;
+    for1(i, nc.cc) if (l->l[i]) fp[i] |= r->f;
   }
-  if (x->ch == '*' + 256) {
+  if (x->ch == '*' + W) {
     nfl(l);
-    x->nullable = true;
-    x->first.copy(l->first);
-    x->last.copy(l->last);
-    for (int i = 1; i <= nc.cc; i++) if (x->last[i]) followpos[i] |= x->first;
+    x->e = true;
+    x->f = l->f;
+    x->l = l->l;
+    for1(i, nc.cc) if (x->l[i]) fp[i] |= x->f;
   }
-}
-
-void LexConstructor::PrintFollow() {
-  puts("Printing Follow");
-  for (int j = 1; j <= nc.cc; j++) {
-    print_char(nc.C[j], 2);
-    printf(" %d ", j);
-    followpos[j].print();
-    putchar('\n');
-  }
-  putchar('\n');
 }
 
 void LexConstructor::DfaFromRegular(Node * root) {
-  BitSet<N> U;
+  static bitset<N> S[N];
+  memset(tran, -1, sizeof(tran));
   state_n = 1;
-  S[0].copy(root->first);
-  for (int i = 0; i < state_n; i++) {
-    for (int j = 0; j < 256; j++) {
-      if (nc.is_input[j]) {
-        U.clear();
-        for (int k = 1; k <= nc.cc; k++) {
-          if (S[i][k] && nc.C[k] == j) U |= followpos[k];
-        }
-        if (!U.any()) {
-          tran[i][j] = -1;
-          continue;
-        }
-        int k;
-        for (k = 0; k < state_n; k++) {
-          if (U == S[k])break;
-        }
-        if (k == state_n) {
-          S[state_n].copy(U);
-          state_n++;
-        }
-        tran[i][j] = k;
-      } else {
-        tran[i][j] = -1;
+  S[0] = root->f;
+  for0(i, state_n) {
+    for0(j, W) {
+      if (nc.isi[j]) {
+        bitset<N> U;
+        for1(k, nc.cc) if (S[i][k] && nc.C[k] == j) U |= fp[k];
+        if (!U.any()) continue;
+        tran[i][j] = find(S, S + state_n, U) - S;
+        if (tran[i][j] == state_n) S[state_n++] = U;
       }
     }
-    accepting[i] = -1;
-    for (int j = 0; j < token_n; j++)
-      if (S[i].test(acposition[j])) {
-        accepting[i] = j;
-        break;
-      }
+    ac[i] = -1;
+    for0(j, token_n) if (S[i].test(ap[j])) {
+      ac[i] = j;
+      break;
+    }
   }
 }
 
 void LexConstructor::MinimizeDfa() {
   static int p[N];
   static int visited[N + 1];
+  static int parti[N];  // partition
+  static int G[N][W];
   memset(visited, -1, sizeof(visited));
-  M_n = 0;
+  int M_n = 0;
   for0(i, state_n) {
-    if (visited[accepting[i] + 1] == -1) visited[accepting[i] + 1] = M_n++;
-    parti[i] = visited[accepting[i] + 1];
+    int &v = visited[ac[i] + 1];
+    if (v == -1) v = M_n++;
+    parti[i] = v;
   }
   bool flag;
   do {
     flag = false;
-    for0(i, state_n) for0(j, 256)
-      if (nc.is_input[j] && ~tran[i][j])
-        G[i][j] = parti[tran[i][j]];
-      else
-        G[i][j] = -1;
+    for0(i, state_n) for0(j, W) G[i][j] = nc.isi[j] && ~tran[i][j] ? parti[tran[i][j]] : -1;
     for0(i, state_n) p[i] = i;
-    cmp c(nc);
-    std::sort(p, p + state_n, c);
-    for0(i, state_n) if (parti[p[i]] == parti[p[i - 1]]) {
-      if (c.operator()(p[i - 1], p[i])) {
+    auto c = [&](int a, int b) {
+      if (parti[a] != parti[b]) return parti[a] < parti[b];
+      for0(i, W) if (nc.isi[i] && G[a][i] != G[b][i]) return G[a][i] < G[b][i];
+      return false;
+    };
+    sort(p, p + state_n, c);
+    for (int i = 1; i < state_n; i++) if (parti[p[i]] == parti[p[i - 1]]) {
+      if (c(p[i - 1], p[i])) {
         parti[p[i]] = M_n++;
         flag = true;
       } else {
@@ -388,52 +379,21 @@ void LexConstructor::MinimizeDfa() {
       }
     }
   } while (flag);
-  for0(i, state_n) for0(j, 256)
-    M[parti[i]].tran[j] = G[i][j];
+  for0(i, state_n) for0(j, W) M[parti[i]].tran[j] = G[i][j];
   for0(i, M_n) {
     M[i].old_n = i;
     M[i].mn = state_n;
   }
   for0(i, state_n) {
-    M[parti[i]].accepting = accepting[i];
+    M[parti[i]].ac = ac[i];
     if (M[parti[i]].mn > i) M[parti[i]].mn = i;
   }
-  cmp_state cs;
-  std::sort(M, M + M_n, cs);
+  state_n = M_n;
+  sort(M, M + M_n);
   for0(i, M_n) p[M[i].old_n] = i;
-  for0(i, M_n) for0(j, 256)
+  for0(i, M_n) for0(j, W)
     if (~M[i].tran[j])
       M[i].tran[j] = p[M[i].tran[j]];
-}
-
-void LexConstructor::PrintDfa() {
-  const int L = 5;
-  printf("%*c", L + 2, ' ');
-  for0(j, 256) if (nc.is_input[j]) print_char(j, L); putchar('\n');
-  for (int i = 0; i < state_n; i++) {
-    printf("%2d", i);
-    int l = ~accepting[i] ? printf("#(%d)", accepting[i]) : 0;
-    printf("%*s", L - l, "");
-    for0(j, 256) if (nc.is_input[j]) printf("%5d", tran[i][j]);
-    putchar(' ');
-    S[i].print();
-    putchar('\n');
-  }
-  putchar('\n');
-}
-
-void LexConstructor::PrintMinimizedDfa() {
-  const int L = 5;
-  printf("%*c", L + 2, ' ');
-  for0(j, 256) if (nc.is_input[j]) print_char(j, L); putchar('\n');
-  for (int i = 0; i < M_n; i++) {
-    printf("%2d", i);
-    int l = ~M[i].accepting ? printf("#(%d)", M[i].accepting) : 0;
-    printf("%*s", L - l, "");
-    for0(j, 256) if (nc.is_input[j]) printf("%5d", M[i].tran[j]);
-    putchar('\n');
-  }
-  putchar('\n');
 }
 
 void LexConstructor::init() {
@@ -441,23 +401,20 @@ void LexConstructor::init() {
   regular_n = sizeof(regulars) / sizeof(regulars[0]);
   regular_table_size_ = 0;
   for (int i = 0; i < regular_n; i++) {
-    regulars[i].tree = nc.RegularExpressionSyntaxTree(regulars[i].regular, regular_table_size_);
+    regulars[i].tree = nc.SyntaxTree(regulars[i].regular, regular_table_size_++);
     if (regulars[i].tree == NULL) {
       ConstructException ex;
       sprintf(ex.message, "Regular #%d:%s Is Wrong", i, regulars[i].name.c_str());
       throw ex;
     }
-    regular_table_size_++;
   }
 }
 
-Node * LexConstructor::bds(const string &s, int regular_table_size) {
-  Node *x = nc.RegularExpressionSyntaxTree(s, regular_table_size);
-  if (!x) return nullptr;
-  Node *y = Node::newNode('#' + 256);
-  y->n = ++nc.cc;
-  nc.C[y->n] = '#';
-  return Node::newNode('&' + 256, x, y);
+Node* LexConstructor::bds(const string &s, int rts) {
+  Node *x = nc.SyntaxTree(s, rts);
+  Node *y = Node::newNode('#' + W);
+  nc.C[y->n = ++nc.cc] = '#';
+  return Node::newNode('&' + W, x, y);
 }
 
 LexConstructor::LexConstructor() {
@@ -465,156 +422,113 @@ LexConstructor::LexConstructor() {
     Node *root = nullptr;
     init();
     nc.clear();
-    for (int i = 0; i < token_n; i++) {
+    for0(i, token_n) {
       Node *x = bds(tokens[i].regular, regular_table_size_);
       if (!x) {
         ConstructException ex;
         sprintf(ex.message, "Token #%d:%s Is Wrong", i, tokens[i].name.c_str());
         throw ex;
       }
-      x->right->token = i;
-      acposition[i] = x->right->n;
-      root = root ? Node::newNode('|' + 256, root, x) : x;
+      ap[x->r->token = i] = x->r->n;
+      root = root ? Node::newNode('|' + W, root, x) : x;
     }
-    memset(followpos, 0, sizeof(followpos));
+    memset(fp, 0, sizeof(fp));
     nfl(root);
-#ifdef DEBUG 
-    ptr(root, 0);
-    putchar('\n');
-    PrintFollow();
-#endif
-    DfaFromRegular(root);
-#ifdef DEBUG
-    PrintDfa();
-#endif
-    MinimizeDfa();
-#ifdef DEBUG
-    PrintMinimizedDfa();
-#endif
+    Do(root);
   } catch (ConstructException &ex) {
     puts(ex.message);
     puts("Lex analyzer construct failed.");
   }
 }
 
-Node * NodeConstructor::copyTree(Node * x) {
-  if (!x) return nullptr;
-  Node *y = Node::newNode(x->ch);
-  if (y->ch < 256) {
-    is_input[y->ch] = 1;
-    y->n = ++cc;
-    C[y->n] = y->ch;
-  }
-  y->left = copyTree(x->left);
-  y->right = copyTree(x->right);
-  return y;
+void LexConstructor::Do(Node *root) {
+  DfaFromRegular(root);
+  MinimizeDfa();
 }
 
-int NodeConstructor::jisuan(char op) {
-  Node *a, *b;
-  switch (op) {
-  case '*':
-    if (outpp == 0) return -1;
-    a = out[outpp--];
-    out[++outpp] = Node::newNode('*' + 256, a);
-    break;
-  case '|':
-    if (outpp < 2) return -1;
-    b = out[outpp--];
-    a = out[outpp--];
-    out[++outpp] = Node::newNode('|' + 256, a, b);
-    break;
-  case '&':
-    if (outpp < 2) return -1;
-    b = out[outpp--];
-    a = out[outpp--];
-    out[++outpp] = Node::newNode('&' + 256, a, b);
-    break;
+#pragma region DLexConstructor
+class DLexConstructor : public LexConstructor {
+public:
+  virtual void Do(Node *root) override;
+private:
+  void ptr(Node *x, int l);
+  void PrintFollow();  // print follow positon
+  void PrintDfa();
+  void PrintMinimizedDfa();
+};
+
+void DLexConstructor::ptr(Node * x, int l) {
+  if (!x) return;
+  if (x->ch < W)
+    print_char(x->ch, l + 1);
+  else
+    printf("%*c%c", l + 1, '_', x->ch - W);
+  if (x->ch < W || x->ch == '#' + W) {
+    if (x->ch == '#' + W) printf("(%d)", x->token);
+    printf(" %d", x->n);
   }
-  return 0;
+  printf(" (%s ", x->e ? "true" : "false");
+  //x->f.print();
+  putchar(' ');
+  //x->l.print();
+  putchar(')');
+  putchar('\n');
+  ptr(x->z, l + 2);
+  ptr(x->r, l + 2);
 }
 
-Node * NodeConstructor::RegularExpressionSyntaxTree(const string &s, int now_regular_size) {
-  static int priority[256];
-  priority['&'] = 2;
-  priority['\0'] = 1;
-  priority['*'] = 3;
-  priority['|'] = 1;
-  priority['('] = 0;
-  inpp = 0, outpp = 0;
-  int f = 0;
-  for (int i = 0;; i++) {
-    if (!isprint(s[i]) && s[i] != '\t' && s[i] != '\n' && s[i] != '\0') return nullptr;
-    switch (s[i]) {
-    case '*':
-    case '\0':
-    case '|':
-      while (inpp > 0 && priority[in[inpp]] >= priority[s[i]])
-        if (jisuan(in[inpp--]) == -1) return nullptr;
-      in[++inpp] = s[i];
-      if (s[i] == '|') f = 0;
-      break;
-    case '(':
-      if (f) {
-        while (inpp > 0 && priority[in[inpp]] >= priority['&'])
-          if (jisuan(in[inpp--]) == -1) return nullptr;
-        in[++inpp] = '&';
-      }
-      in[++inpp] = s[i];
-      f = 0;
-      break;
-    case ')':
-      while (inpp > 0 && in[inpp] != '(')
-        if (jisuan(in[inpp--]) == -1) return nullptr;
-      if (inpp-- == 0) return nullptr;
-      f = 1;
-      break;
-    case '@':
-      char regular[16];
-      int j;
-      for (j = 0; s[++i] != '@' && s[i] != '\0' && j < 15; j++)regular[j] = s[i];
-      if (s[i] != '@') return nullptr;
-      regular[j] = '\0';
-      for (j = 0; j < now_regular_size; j++) if (regular == regulars[j].name) break;
-      if (j == now_regular_size || !regulars[j].tree) return nullptr;
-      if (f) {
-        while (inpp > 0 && priority[in[inpp]] >= priority['&'])
-          if (jisuan(in[inpp--]) == -1) return nullptr;
-        in[++inpp] = '&';
-      }
-      out[++outpp] = copyTree(regulars[j].tree);
-      f = 1;
-      break;
-    case '\\':
-    default:
-      int trans = 0;
-      if (s[i] == '\\') {
-        i++;
-        trans = 1;
-      }
-      if (f) {
-        while (inpp > 0 && priority[in[inpp]] >= priority['&'])
-          if (jisuan(in[inpp--]) == -1) return nullptr;
-        in[++inpp] = '&';
-      }
-      int t;
-      if (!trans && s[i] == '$')t = '$' + 256;
-      else t = s[i];
-      Node *x = Node::newNode(t);
-      if (trans || s[i] != '$') {
-        is_input[s[i]] = 1;
-        x->n = ++cc;
-        C[x->n] = s[i];
-      }
-      out[++outpp] = x;
-      f = 1;
-      break;
-    }
-    if (s[i] == '\0') break;
+void DLexConstructor::PrintFollow() {
+  puts("Printing Follow");
+  for (int j = 1; j <= nc.cc; j++) {
+    print_char(nc.C[j], 2);
+    printf(" %d ", j);
+    //fp[j].print();
+    putchar('\n');
   }
-  if (inpp != 1 || outpp != 1)return NULL;
-  return out[1];
+  putchar('\n');
 }
+
+void DLexConstructor::PrintDfa() {
+  const int L = 5;
+  printf("%*c", L + 2, ' ');
+  for0(j, W) if (nc.isi[j]) print_char(j, L); putchar('\n');
+  for (int i = 0; i < state_n; i++) {
+    printf("%2d", i);
+    int l = ~ac[i] ? printf("#(%d)", ac[i]) : 0;
+    printf("%*s", L - l, "");
+    for0(j, W) if (nc.isi[j]) printf("%5d", tran[i][j]);
+    putchar(' ');
+    //S[i].print();
+    putchar('\n');
+  }
+  putchar('\n');
+}
+
+void DLexConstructor::PrintMinimizedDfa() {
+  const int L = 5;
+  printf("%*c", L + 2, ' ');
+  for0(j, W) if (nc.isi[j]) print_char(j, L); putchar('\n');
+  for (int i = 0; i < M_n; i++) {
+    printf("%2d", i);
+    int l = ~M[i].ac ? printf("#(%d)", M[i].ac) : 0;
+    printf("%*s", L - l, "");
+    for0(j, W) if (nc.isi[j]) printf("%5d", M[i].tran[j]);
+    putchar('\n');
+  }
+  putchar('\n');
+}
+
+void DLexConstructor::Do(Node *root) {
+  ptr(root, 0);
+  putchar('\n');
+  PrintFollow();
+  DfaFromRegular(root);
+  PrintDfa();
+  MinimizeDfa();
+  PrintMinimizedDfa();
+}
+
+#pragma endregion DLexConstructor
 
 class InputStream {
 public:
@@ -625,16 +539,16 @@ public:
 
 class ArrayInputStream : public InputStream {
 public:
-  void init(char *s);
+  void init(const char *s);
   char getNext();
   char lookUp();
   string consume(int n);
 private:
-  char *p;
-  char *next;
+  const char *p;
+  const char *next;
 };
 
-void ArrayInputStream::init(char *s) {
+void ArrayInputStream::init(const char *s) {
   next = p = s;
 }
 
@@ -703,8 +617,8 @@ Token Lex(const State *M, InputStream *ins) {
     }
     int n = 0, na = -1;
     for (int state = 0; ~state; n++) {
-      if (~M[state].accepting) {
-        r.key = M[state].accepting;
+      if (~M[state].ac) {
+        r.key = M[state].ac;
         na = n;
       }
       char in = ins->getNext();
@@ -828,7 +742,7 @@ void prepare_nonterminals() {
 }
 
 struct First {
-  BitSet<N> terminals;
+  bitset<N> terminals;
   char visited;
   bool empty;
 };
@@ -919,7 +833,7 @@ void print_first() {
 }
 
 struct Follow {
-  BitSet<N> terminals;
+  bitset<N> terminals;
 };
 
 Follow follow[N];
@@ -940,9 +854,11 @@ void calc_follow() {
           int nonto = find_nonterminal(p);
           First get;
           first_string(split.getPosition(), &get);
-          f |= follow[nonto].terminals |= get.terminals;
+          f |= (follow[nonto].terminals & get.terminals) != get.terminals;
+          follow[nonto].terminals |= get.terminals;
           if (get.empty) {
-            f |= follow[nonto].terminals |= follow[nonfrom].terminals;
+            f |= (follow[nonto].terminals & follow[nonfrom].terminals) != follow[nonfrom].terminals;
+            follow[nonto].terminals |= follow[nonfrom].terminals;
           }
         }
       }
