@@ -1,5 +1,7 @@
 int gcd(int a, int b) {
-  return b ? gcd(b, a%b) : a;
+  if (!b) return a;
+  while (a %= b) swap(a, b);
+  return b;
 }
 
 int egcd(int a, int b, int &x, int &y) {
